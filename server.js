@@ -24,6 +24,8 @@ app.get('/', (req, res) => res.send('Dream Tuition Center API is running...'));
 app.use('/api/students', studentRoutes);
 app.use('/api/receipts', receiptRoutes);
 
+
+
 // Server start
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
