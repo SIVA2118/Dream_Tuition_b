@@ -17,6 +17,111 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// ✅ HELPER: Generate Professional Receipt PDF
+const generateReceiptPDF = (doc, receipt, student) => {
+  const primaryColor = '#4CAF50'; // Green brand color
+  const secondaryColor = '#333333';
+  const lightGray = '#f5f5f5';
+
+  // --- HEADER ---
+  // Logo Background
+  doc.rect(0, 0, 612, 100).fill(primaryColor); // Top banner
+
+  // Title
+  doc.fontSize(26).fillColor('white').font('Helvetica-Bold')
+    .text('DREAM TUITION CENTER', 0, 30, { align: 'center' });
+
+  doc.fontSize(10).fillColor('white').font('Helvetica')
+    .text('Excellence in Education Management', 0, 65, { align: 'center' });
+
+  // Address Section (Below banner)
+  doc.moveDown(4);
+  doc.fillColor(secondaryColor);
+  doc.fontSize(10).text(
+    'Door No 50, 1st floor, Pachaiyapan Nagar, 1st street,\nRakkiyapalayam pirvu, Tiruppur-641606',
+    { align: 'center' }
+  );
+  doc.moveDown(0.5);
+  doc.fontSize(11).font('Helvetica-Bold').text('Mobile: +91 81100 54961', { align: 'center' });
+
+  // Divider
+  doc.moveDown(1);
+  doc.moveTo(50, doc.y).lineTo(562, doc.y).strokeColor('#e0e0e0').stroke();
+
+  // --- RECEIPT TITLE ---
+  doc.moveDown(2);
+  doc.fontSize(20).font('Helvetica-Bold').fillColor(primaryColor)
+    .text('PAYMENT RECEIPT', { align: 'center', characterSpacing: 2 });
+  doc.moveDown(1.5);
+
+  // --- RECEIPT DETAILS BOX ---
+  const boxTop = doc.y;
+  const boxLeft = 50;
+  const boxWidth = 512;
+  const boxHeight = 180;
+
+  // Draw Box
+  doc.rect(boxLeft, boxTop, boxWidth, boxHeight).lineWidth(1).strokeColor('#e0e0e0').stroke();
+
+  // Background for labels column
+  doc.rect(boxLeft, boxTop, 150, boxHeight).fill(lightGray);
+
+  // Content
+  const startY = boxTop + 25;
+  const lineHeight = 35;
+  const valueX = boxLeft + 170;
+
+  // Labels
+  doc.fontSize(11).font('Helvetica-Bold').fillColor(secondaryColor);
+  doc.text('Receipt No:', boxLeft + 20, startY);
+  doc.text('Date:', boxLeft + 20, startY + lineHeight);
+  doc.text('Student Name:', boxLeft + 20, startY + lineHeight * 2);
+  doc.text('Month:', boxLeft + 20, startY + lineHeight * 3);
+  doc.text('Amount Paid:', boxLeft + 20, startY + lineHeight * 4);
+
+  // Values
+  doc.font('Helvetica').fillColor('black');
+  doc.text(`# ${receipt._id.toString().slice(-6).toUpperCase()}`, valueX, startY);
+  doc.text(new Date(receipt.createdAt).toLocaleDateString('en-IN', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  }), valueX, startY + lineHeight);
+
+  doc.font('Helvetica-Bold').text(student.name, valueX, startY + lineHeight * 2);
+  doc.font('Helvetica').text(receipt.month, valueX, startY + lineHeight * 3);
+
+  // Amount with highlight
+  doc.fontSize(14).fillColor(primaryColor).font('Helvetica-Bold')
+    .text(`Rs. ${receipt.amount.toFixed(2)}`, valueX, startY + lineHeight * 4 - 2);
+
+  // --- TOTAL ---
+  doc.moveDown(8);
+  const totalY = doc.y;
+  doc.moveTo(50, totalY).lineTo(562, totalY).lineWidth(2).strokeColor(primaryColor).stroke();
+
+  doc.moveDown(1);
+  doc.fontSize(12).font('Helvetica-Bold').fillColor(secondaryColor)
+    .text('Payment Mode: CASH/ONLINE', 50, doc.y);
+
+  // --- FOOTER / SIGNATURE ---
+  const bottomY = 650;
+
+  doc.fontSize(10).font('Helvetica').fillColor(secondaryColor)
+    .text("Receiver's Signature", 400, bottomY - 40, { align: 'center' });
+
+  if (receipt.receiverSignature) {
+    doc.font('Helvetica-Oblique').fontSize(12)
+      .text(receipt.receiverSignature, 400, bottomY - 20, { align: 'center' });
+  } else {
+    doc.moveTo(400, bottomY - 10).lineTo(550, bottomY - 10).strokeColor(secondaryColor).stroke();
+  }
+
+  // Bottom Branding
+  doc.fontSize(9).fillColor('#888888')
+    .text('Thank you for choosing Dream Tuition Center!', 0, 700, { align: 'center' });
+  doc.text('This is a computer-generated receipt.', 0, 715, { align: 'center' });
+};
+
+
 // ✅ CREATE RECEIPT + SEND EMAIL + SAVE PDF
 exports.createReceipt = async (req, res) => {
   try {
@@ -34,38 +139,12 @@ exports.createReceipt = async (req, res) => {
 
     // PDF path and creation
     const pdfPath = path.join(__dirname, `../tmp/receipt_${receipt._id}.pdf`);
-    const doc = new PDFDocument({ margin: 40 });
+    const doc = new PDFDocument({ margin: 0, size: 'A4' }); // Zero margin for full header
     const pdfStream = fs.createWriteStream(pdfPath);
     doc.pipe(pdfStream);
 
-    // Header
-    doc.fontSize(20).text('Dream Tution Center', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(10).text(
-      'Door No 50, 1st floor, Pachaiyapan Nagar, 1st street, Rakkiyapalayam pirvu, Tiruppur-641606',
-      { align: 'center' }
-    );
-    doc.moveDown(1);
-    doc.fontSize(12).text('📞 Mobile: 8110054961', { align: 'center' });
-    doc.moveDown(1);
-    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke();
-
-    // Body
-    doc.moveDown(1.5);
-    doc.fontSize(12);
-    doc.text(`Name: ${student.name}`);
-    doc.text(`Month: ${month}`);
-    doc.text(`Amount (Rs): ${amount.toFixed(2)}`);
-    doc.text(`Receipt No: ${receipt._id}`);
-    doc.text(`Date: ${new Date(receipt.createdAt).toLocaleDateString()}`);
-    doc.moveDown(2);
-    doc.text(`Receiver's signature: ${receiverSignature || '____________________'}`);
-    doc.moveDown(3);
-
-    // Footer
-    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown(0.5);
-    doc.fontSize(10).text('Thank you for choosing Dream Tution Center!', { align: 'center' });
+    // Generate content
+    generateReceiptPDF(doc, receipt, student);
 
     doc.end();
 
@@ -81,7 +160,12 @@ exports.createReceipt = async (req, res) => {
         ]
       };
 
-      await transporter.sendMail(mailOptions);
+      try {
+        await transporter.sendMail(mailOptions);
+      } catch (emailErr) {
+        console.error("Email failed:", emailErr);
+        // Continue to respond success even if email fails, but log it
+      }
 
       fs.unlink(pdfPath, err => {
         if (err) console.error('Failed to delete temp file:', err);
@@ -119,5 +203,37 @@ exports.getStudentsPaymentStatus = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch payment data" });
+  }
+};
+
+// ✅ DOWNLOAD RECEIPT PDF
+exports.downloadReceipt = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const receipt = await Receipt.findById(id).populate('student');
+
+    if (!receipt) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    const student = receipt.student;
+
+    // Create PDF
+    const doc = new PDFDocument({ margin: 0, size: 'A4' });
+
+    // Set headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Receipt_${student.name}_${receipt.month}.pdf`);
+
+    doc.pipe(res);
+
+    // Generate content
+    generateReceiptPDF(doc, receipt, student);
+
+    doc.end();
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to download receipt" });
   }
 };
